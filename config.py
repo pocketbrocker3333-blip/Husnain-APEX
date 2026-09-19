@@ -41,8 +41,9 @@ QUOTEX_OTC_PAIRS = {
     "USD/ARS (OTC)": "BCH-USD"
 }
 
-EXPIRY_TIMES = {
-    "1 Minute Expiry (Turbo)": "1m",
-    "5 Minutes Expiry (Standard)": "5m",
-    "15 Minutes Expiry": "15m"
+# Expiry Time & Candle Timeframe Synced
+EXPIRY_AND_TIMEFRAME = {
+    "1 Minute Expiry (1m Candle)": "1m",
+    "5 Minutes Expiry (5m Candle)": "5m",
+    "15 Minutes Expiry (15m Candle)": "15m"
 }
