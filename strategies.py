@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 def calculate_advanced_signal(df):
-    # Calculate RSI (14)
+    # RSI Calculation
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -10,11 +10,10 @@ def calculate_advanced_signal(df):
     df['RSI'] = 100 - (100 / (1 + rs))
     df['RSI'] = df['RSI'].fillna(50)
 
-    # Calculate EMAs
+    # EMAs
     df['EMA9'] = df['Close'].ewm(span=9, adjust=False).mean()
     df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
     
-    # Latest Data Metrics
     last_close = df['Close'].iloc[-1]
     last_open = df['Open'].iloc[-1]
     last_rsi = df['RSI'].iloc[-1]
@@ -26,45 +25,44 @@ def calculate_advanced_signal(df):
     prev_close = df['Close'].iloc[-2]
     prev_open = df['Open'].iloc[-2]
 
-    # Candlestick Pattern Detection
+    # Candlestick Patterns
     bullish_engulfing = (prev_close < prev_open) and (last_close > last_open) and (last_close > prev_open)
     bearish_engulfing = (prev_close > prev_open) and (last_close < last_open) and (last_close < prev_open)
 
-    # Multi-Indicator Scoring Mechanism
     call_score = 0
     put_score = 0
 
-    # 1. Price Action Candle Direction
+    # Candle Direction
     if last_close > last_open:
         call_score += 1
     elif last_close < last_open:
         put_score += 1
 
-    # 2. RSI Signals
+    # RSI Overbought/Oversold
     if last_rsi < 40:
         call_score += 2
     elif last_rsi > 60:
         put_score += 2
 
-    # 3. EMA Trend Confirmation
+    # EMA Cross
     if ema9 > ema21:
         call_score += 1
     elif ema9 < ema21:
         put_score += 1
 
-    # 4. Bollinger Bands Overbought/Oversold Reversals
+    # Bollinger Reversals
     if last_close <= lower_b:
         call_score += 2
     elif last_close >= upper_b:
         put_score += 2
 
-    # 5. Candlestick Confirmation
+    # Price Action
     if bullish_engulfing:
         call_score += 2
     elif bearish_engulfing:
         put_score += 2
 
-    # Scanner Decision Algorithm
+    # Signal Output
     if call_score >= 3 and call_score > put_score:
         accuracy = min(88 + call_score * 2, 98)
         return "CALL", "CALL (UP) ⬆", f"{accuracy}%", last_rsi
