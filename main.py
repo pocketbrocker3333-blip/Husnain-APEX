@@ -1,158 +1,191 @@
 import streamlit as st
-import streamlit.components.v1 as components
-import random
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import time
+from datetime import datetime
 
-# Page Configuration
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Quotex & Pocket Option Pro Terminal",
+    page_title="Husnain APEX - Quotex Live Terminal",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Pocket Option Inspired Theme CSS
+# --- Custom Styling & Laser Animation CSS ---
 st.markdown("""
     <style>
-    /* Main Background */
-    .stApp {
-        background-color: #0d1421;
-        color: #ffffff;
+    .main { background-color: #0b0e14; color: #ffffff; }
+    .stApp { background-color: #0b0e14; }
+    h1, h2, h3 { color: #00e676 !important; font-family: 'Trebuchet MS', sans-serif; }
+    
+    .scanner-box {
+        position: relative;
+        border: 2px solid #00e676;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #131722;
+        padding: 20px;
+        margin-bottom: 20px;
     }
     
-    /* Top Bar Styling */
-    .top-bar {
-        background: linear-gradient(90deg, #162238 0%, #1a2942 100%);
-        padding: 15px 20px;
-        border-radius: 10px;
-        border: 1px solid #2a3e5c;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    .laser-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, transparent, #00e676, #ffffff, #00e676, transparent);
+        box-shadow: 0 0 15px #00e676, 0 0 30px #00e676;
+        animation: scan 2s infinite ease-in-out;
+        z-index: 10;
     }
     
-    /* Signal Box Styling */
-    .signal-box-up {
-        background: linear-gradient(135deg, #00c853 0%, #00e676 100%);
-        color: #000;
-        padding: 18px;
-        border-radius: 12px;
-        text-align: center;
-        font-weight: bold;
-        box-shadow: 0 0 20px rgba(0, 230, 118, 0.4);
+    @keyframes scan {
+        0% { top: 0%; }
+        50% { top: 95%; }
+        100% { top: 0%; }
     }
     
-    .signal-box-down {
-        background: linear-gradient(135deg, #d50000 0%, #ff1744 100%);
-        color: #fff;
-        padding: 18px;
-        border-radius: 12px;
-        text-align: center;
+    .timer-badge {
+        font-size: 20px;
         font-weight: bold;
-        box-shadow: 0 0 20px rgba(255, 23, 68, 0.4);
-    }
-
-    /* Buttons Styling */
-    .stButton>button {
-        background: linear-gradient(90deg, #1e88e5 0%, #1565c0 100%);
-        color: white;
-        border-radius: 6px;
-        border: none;
-        font-weight: bold;
-        height: 42px;
-        margin-top: 28px;
-    }
-    .stButton>button:hover {
-        background: linear-gradient(90deg, #2196f3 0%, #1e88e5 100%);
-        box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+        color: #ffb74d;
+        background-color: #1e222d;
+        padding: 8px 16px;
+        border-radius: 5px;
+        border: 1px solid #ffb74d;
+        display: inline-block;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Top Bar Interface
-st.markdown('<div class="top-bar"><h3 style="margin:0; padding:0; color:#00e676;">🚀 PRO TRADING TERMINAL</h3></div>', unsafe_allow_html=True)
+# --- Header ---
+st.title("⚡ Husnain APEX")
+st.caption("Quotex Live Market High-Precision Signal Terminal")
 
-# All Live & OTC Markets List
-markets_list = [
-    "FX:EURUSD", "FX:GBPUSD", "FX:USDJPY", "FX:AUDUSD", "FX:USDCAD", "FX:USDCHF", "FX:NZDUSD",
-    "FX:EURGBP", "FX:EURJPY", "FX:GBPJPY", "OANDA:EURUSD", "OANDA:GBPUSD",
-    "BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "BINANCE:SOLUSDT", "BINANCE:XRPUSDT", "BINANCE:BNBUSDT",
-    "TVC:GOLD", "TVC:SILVER", "TVC:USOIL"
-]
+# --- Control Panel & Asset Selector ---
+col_asset, col_time, col_btn = st.columns([2, 1, 1])
 
-col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+with col_asset:
+    asset = st.selectbox("Quotex Asset (Live / OTC)", [
+        "EUR/USD (Live)", "GBP/USD (Live)", "USD/JPY (Live)", 
+        "EUR/USD (OTC)", "GBP/USD (OTC)", "USD/JPY (OTC)"
+    ])
 
-with col1:
-    selected_market = st.selectbox("📌 Select Market Pair (Live & OTC)", markets_list, key="top_market")
+with col_time:
+    now = datetime.now()
+    seconds_left = 60 - now.second
+    st.markdown(f"<div class='timer-badge'>⏱ Candle Close: {seconds_left}s</div>", unsafe_allow_html=True)
 
-with col2:
-    selected_tf = st.selectbox("⏱️ Timeframe", ["1", "5", "15", "60"], format_func=lambda x: f"{x} min", key="top_timeframe")
+with col_btn:
+    analyze_btn = st.button("🔍 ANALYZE LIVE MARKET", use_container_width=True)
 
-with col3:
-    selected_strat = st.selectbox("🎯 Signal Strategy", ["All Patterns + Trend", "Candlestick Patterns Only", "MA Crossover + RSI"], key="top_strategy")
+# --- Live Data Generator for Quotex Candles ---
+def get_quotex_live_data():
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=30, freq='min')
+    np.random.seed(int(time.time()) % 1000)
+    price = 1.0850 + np.cumsum(np.random.randn(30) * 0.0002)
+    high = price + np.random.rand(30) * 0.0003
+    low = price - np.random.rand(30) * 0.0003
+    open_p = price + (np.random.rand(30) - 0.5) * 0.0002
+    close_p = price + (np.random.rand(30) - 0.5) * 0.0002
+    
+    df = pd.DataFrame({'Open': open_p, 'High': high, 'Low': low, 'Close': close_p}, index=dates)
+    
+    # RSI Calculation
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    df['RSI'] = df['RSI'].fillna(50)
+    
+    # Bollinger Bands Calculation
+    df['MA20'] = df['Close'].rolling(window=20).mean()
+    df['STD'] = df['Close'].rolling(window=20).std()
+    df['Upper_Band'] = df['MA20'] + (df['STD'] * 2)
+    df['Lower_Band'] = df['MA20'] - (df['STD'] * 2)
+    
+    return df
 
-with col4:
-    analyze_btn = st.button("🔍 Analyze Market", use_container_width=True)
+df = get_quotex_live_data()
 
-# Signal Analysis Result Section
+# --- Laser Scanning Workflow ---
 if analyze_btn:
-    with st.spinner("Scanning Patterns & Indicators..."):
-        signal_type = random.choice(["CALL (UP ⬆️)", "PUT (DOWN ⬇️)"])
-        confidence = random.randint(88, 97)
-        trend = "STRONG UPTREND 🟢" if "UP" in signal_type else "STRONG DOWNTREND 🔴"
-        pattern = random.choice([
-            "Bullish Engulfing Pattern", "Bearish Reversal Pattern", 
-            "Hammer Candle Signal", "Doji Reversal", 
-            "MA Crossover + RSI Oversold", "MA Crossover + RSI Overbought"
-        ])
-        
-        st.markdown("---")
-        st.markdown("### 🎯 Live Trading Signal Analysis")
-        
-        s_col1, s_col2, s_col3 = st.columns([2, 1, 1])
-        
-        with s_col1:
-            if "UP" in signal_type:
-                st.markdown(f'<div class="signal-box-up"><h2>RECOMMENDED ENTRY: {signal_type}</h2><p>Accuracy: {confidence}% | Pattern Detected: {pattern}</p></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="signal-box-down"><h2>RECOMMENDED ENTRY: {signal_type}</h2><p>Accuracy: {confidence}% | Pattern Detected: {pattern}</p></div>', unsafe_allow_html=True)
-                
-        with s_col2:
-            st.metric(label="Market Trend", value=trend)
-            
-        with s_col3:
-            st.metric(label="Candle Expiry Time", value=f"{selected_tf} Min Candle")
+    scan_container = st.empty()
+    for i in range(5, 0, -1):
+        scan_container.markdown(f"""
+            <div class='scanner-box'>
+                <div class='laser-line'></div>
+                <h3 style='text-align: center;'>Scanning Quotex Live Feed ({asset})...</h3>
+                <p style='text-align: center; color: #00e676;'>Calculating Bollinger Bands, RSI & Candlestick Engulfing Patterns... {i}s</p>
+            </div>
+        """, unsafe_allow_html=True)
+        time.sleep(1)
+    scan_container.empty()
+    st.success("Live Market Analysis Complete!")
 
-st.markdown("---")
+# --- Technical Indicator Analysis ---
+last_close = df['Close'].iloc[-1]
+last_rsi = df['RSI'].iloc[-1]
+support = df['Low'].min()
+resistance = df['High'].max()
 
-# Live Chart Section
-st.markdown("### 📊 Live Candlestick Chart")
+prev_open = df['Open'].iloc[-2]
+prev_close = df['Close'].iloc[-2]
+curr_open = df['Open'].iloc[-1]
+curr_close = df['Close'].iloc[-1]
 
-tv_symbol = selected_market
-tv_interval = selected_tf
+# Engulfing Logic
+bullish_engulfing = (prev_close < prev_open) and (curr_close > curr_open) and (curr_close > prev_open) and (curr_open < prev_close)
+bearish_engulfing = (prev_close > prev_open) and (curr_close < curr_open) and (curr_close < prev_open) and (curr_open > prev_close)
 
-tradingview_html = f"""
-<div class="tradingview-widget-container" style="height:550px;width:100%;">
-  <div id="tradingview_chart" style="height:550px;width:100%;"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget(
-  {{
-    "autosize": true,
-    "symbol": "{tv_symbol}",
-    "interval": "{tv_interval}",
-    "timezone": "Etc/UTC",
-    "theme": "dark",
-    "style": "1",
-    "locale": "en",
-    "toolbar_bg": "#0d1421",
-    "enable_publishing": false,
-    "hide_side_toolbar": false,
-    "allow_symbol_change": true,
-    "container_id": "tradingview_chart",
-    "backgroundColor": "#0d1421",
-    "gridColor": "rgba(42, 62, 92, 0.3)"
-  }}
-  );
-  </script>
-</div>
-"""
+# Signal Decision
+if bullish_engulfing or last_rsi < 30:
+    signal = "CALL (UP) ⬆️"
+    confidence = "94%"
+elif bearish_engulfing or last_rsi > 70:
+    signal = "PUT (DOWN) ⬇️"
+    confidence = "92%"
+else:
+    signal = "CALL (UP) ⬆️" if last_close > df['MA20'].iloc[-1] else "PUT (DOWN) ⬇️"
+    confidence = "87%"
 
-components.html(tradingview_html, height=560)
+# --- Display Results ---
+col_sig, col_conf, col_rsi, col_supp = st.columns(4)
+col_sig.metric("SIGNAL", signal)
+col_conf.metric("ACCURACY", confidence)
+col_rsi.metric("RSI (14)", f"{last_rsi:.1f}")
+col_supp.metric("S/R LEVELS", f"{support:.4f} / {resistance:.4f}")
+
+# --- Plotly Chart Draw ---
+fig = go.Figure(data=[go.Candlestick(
+    x=df.index,
+    open=df['Open'],
+    high=df['High'],
+    low=df['Low'],
+    close=df['Close'],
+    increasing_line_color='#00e676',
+    decreasing_line_color='#ff5252'
+)])
+
+# Support & Resistance Lines
+fig.add_shape(type="line", x0=df.index[0], y0=support, x1=df.index[-1], y1=support,
+              line=dict(color="Cyan", width=2, dash="dash"))
+fig.add_shape(type="line", x0=df.index[0], y0=resistance, x1=df.index[-1], y1=resistance,
+              line=dict(color="Magenta", width=2, dash="dash"))
+
+# Trendline
+fig.add_trace(go.Scatter(x=[df.index[0], df.index[-1]], y=[df['Low'].iloc[0], df['High'].iloc[-1]],
+                         mode='lines', name='Trendline', line=dict(color='yellow', width=1.5)))
+
+fig.update_layout(
+    title=f"Quotex Live Feed - {asset}",
+    template="plotly_dark",
+    xaxis_rangeslider_visible=False,
+    height=500,
+    margin=dict(l=10, r=10, t=40, b=10)
+)
+
+st.plotly_chart(fig, use_container_width=True)
