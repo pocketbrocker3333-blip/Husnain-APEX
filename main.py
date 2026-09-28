@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- Exact Quotex Styling & Dark UI ---
+# --- Exact Quotex Styling & Glowing Cards CSS ---
 st.markdown("""
     <style>
     .main { background-color: #0e131d; color: #ffffff; }
@@ -57,6 +57,51 @@ st.markdown("""
         border: 1px solid #ffb74d;
         text-align: center;
     }
+
+    /* Custom Signal Cards */
+    .card-call {
+        background: #003319;
+        border: 2px solid #00e676;
+        box-shadow: 0 0 15px rgba(0, 230, 118, 0.4);
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    .card-put {
+        background: #33000d;
+        border: 2px solid #ff3366;
+        box-shadow: 0 0 15px rgba(255, 51, 102, 0.4);
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    .card-wait {
+        background: #332200;
+        border: 2px solid #ffb74d;
+        box-shadow: 0 0 15px rgba(255, 183, 77, 0.4);
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    .card-info {
+        background: #131722;
+        border: 1px solid #2d364d;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    .card-title {
+        color: #8b949e;
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+    .card-value {
+        font-size: 22px;
+        font-weight: 900;
+        margin: 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -64,7 +109,7 @@ st.markdown("""
 st.title("⚡ Husnain APEX")
 st.caption("Quotex Live Market High-Precision Signal Terminal")
 
-# --- Controls ---
+# --- Asset Selector & Controls ---
 col_asset, col_time, col_btn = st.columns([2, 1, 1])
 
 with col_asset:
@@ -81,27 +126,24 @@ with col_time:
 with col_btn:
     analyze_btn = st.button("🔍 ANALYZE LIVE MARKET", use_container_width=True)
 
-# --- Fixed Data Generator (Stable Chart) ---
+# --- Stable Live Data Engine ---
 @st.cache_data(ttl=5)
-def get_stable_quotex_data():
-    # 30 کینڈلز کا فکسڈ بیس ڈیٹا تاکہ چارٹ بار بار ہل کر جھٹکے نہ لے
+def get_stable_quotex_data(asset_name):
+    dates = pd.date_range(end=pd.Timestamp.now().floor('min'), periods=30, freq='min')
     np.random.seed(42)
-    dates = pd.date_range(end=pd.Timestamp.now(), periods=30, freq='min')
     price = 1.0850 + np.cumsum(np.random.randn(30) * 0.0002)
-    high = price + np.random.rand(30) * 0.0003
-    low = price - np.random.rand(30) * 0.0003
-    open_p = price + (np.random.rand(30) - 0.5) * 0.0002
-    close_p = price + (np.random.rand(30) - 0.5) * 0.0002
+    high = price + np.abs(np.random.randn(30) * 0.0002)
+    low = price - np.abs(np.random.randn(30) * 0.0002)
+    open_p = price + (np.random.rand(30) - 0.5) * 0.0001
+    close_p = price + (np.random.rand(30) - 0.5) * 0.0001
     
     df = pd.DataFrame({'Open': open_p, 'High': high, 'Low': low, 'Close': close_p}, index=dates)
     
-    # صرف آخری کینڈل لائیو موومنٹ کرے گی
-    live_tick = (time.time() % 10) * 0.00005
-    df.iloc[-1, df.columns.get_loc('Close')] += live_tick
-    df.iloc[-1, df.columns.get_loc('High')] = max(df.iloc[-1]['High'], df.iloc[-1]['Close'])
-    df.iloc[-1, df.columns.get_loc('Low')] = min(df.iloc[-1]['Low'], df.iloc[-1]['Close'])
+    live_seed = int(time.time())
+    np.random.seed(live_seed)
+    df.iloc[-1, df.columns.get_loc('Close')] += np.random.randn() * 0.00005
     
-    # RSI
+    # Indicators
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -109,7 +151,6 @@ def get_stable_quotex_data():
     df['RSI'] = 100 - (100 / (1 + rs))
     df['RSI'] = df['RSI'].fillna(50)
     
-    # Bollinger Bands
     df['MA20'] = df['Close'].rolling(window=20).mean()
     df['STD'] = df['Close'].rolling(window=20).std()
     df['Upper_Band'] = df['MA20'] + (df['STD'] * 2)
@@ -117,24 +158,24 @@ def get_stable_quotex_data():
     
     return df
 
-df = get_stable_quotex_data()
+df = get_stable_quotex_data(asset)
 
-# --- Laser Scanning Workflow (Fixed) ---
+# --- Laser Scanning Execution ---
 if analyze_btn:
-    scan_container = st.empty()
-    for i in range(5, 0, -1):
-        scan_container.markdown(f"""
+    scan_placeholder = st.empty()
+    for i in range(3, 0, -1):
+        scan_placeholder.markdown(f"""
             <div class='scanner-box'>
                 <div class='laser-line'></div>
-                <h3 style='text-align: center; color: #00e676;'>Scanning Quotex Live Feed ({asset})...</h3>
-                <p style='text-align: center; color: #ffffff;'>Calculating RSI (14), Bollinger Bands & Engulfing Reversals... {i}s</p>
+                <h3 style='text-align: center; color: #00e676;'>Scanning Quotex Feed ({asset})...</h3>
+                <p style='text-align: center; color: #ffffff;'>Calculating Support/Resistance, RSI & Engulfing Patterns... {i}s</p>
             </div>
         """, unsafe_allow_html=True)
         time.sleep(1)
-    scan_container.empty()
-    st.success("Live Market Analysis Complete!")
+    scan_placeholder.empty()
+    st.success("Market Scanned Successfully!")
 
-# --- High Precision Signal Calculation ---
+# --- Signal Calculations ---
 last_close = df['Close'].iloc[-1]
 last_rsi = df['RSI'].iloc[-1]
 upper_b = df['Upper_Band'].iloc[-1]
@@ -151,29 +192,49 @@ bullish_engulfing = (prev_close < prev_open) and (curr_close > curr_open) and (c
 bearish_engulfing = (prev_close > prev_open) and (curr_close < curr_open) and (curr_close < prev_open) and (curr_open > prev_close)
 
 if (last_rsi < 35 or last_close <= lower_b) and bullish_engulfing:
-    signal = "CALL (UP) ⬆️"
-    confidence = "96% (Strong Reversal)"
+    signal_type = "CALL"
+    signal_text = "CALL (UP) ⬆"
+    confidence = "96%"
 elif (last_rsi > 65 or last_close >= upper_b) and bearish_engulfing:
-    signal = "PUT (DOWN) ⬇️"
-    confidence = "95% (Strong Reversal)"
+    signal_type = "PUT"
+    signal_text = "PUT (DOWN) ⬇"
+    confidence = "95%"
 elif last_rsi < 40:
-    signal = "CALL (UP) ⬆️"
+    signal_type = "CALL"
+    signal_text = "CALL (UP) ⬆"
     confidence = "88%"
 elif last_rsi > 60:
-    signal = "PUT (DOWN) ⬇️"
+    signal_type = "PUT"
+    signal_text = "PUT (DOWN) ⬇"
     confidence = "87%"
 else:
-    signal = "WAIT / NO TRADE ⚠️"
-    confidence = "Market Consolidation"
+    signal_type = "WAIT"
+    signal_text = "WAIT / NO TRADE ⚠️"
+    confidence = "Consolidation"
 
-# --- Metrics Display ---
+# --- High-Visibility Custom Glowing Cards ---
 col_sig, col_conf, col_rsi, col_supp = st.columns(4)
-col_sig.metric("SIGNAL", signal)
-col_conf.metric("ACCURACY", confidence)
-col_rsi.metric("RSI (14)", f"{last_rsi:.1f}")
-col_supp.metric("S/R LEVELS", f"{support:.4f} / {resistance:.4f}")
 
-# --- Plotly Quotex Style Chart ---
+with col_sig:
+    if signal_type == "CALL":
+        st.markdown(f"<div class='card-call'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#00e676;'>{signal_text}</div></div>", unsafe_allow_html=True)
+    elif signal_type == "PUT":
+        st.markdown(f"<div class='card-put'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#ff3366;'>{signal_text}</div></div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='card-wait'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#ffb74d;'>{signal_text}</div></div>", unsafe_allow_html=True)
+
+with col_conf:
+    st.markdown(f"<div class='card-info'><div class='card-title'>ACCURACY</div><div class='card-value' style='color:#ffffff;'>{confidence}</div></div>", unsafe_allow_html=True)
+
+with col_rsi:
+    st.markdown(f"<div class='card-info'><div class='card-title'>RSI (14)</div><div class='card-value' style='color:#00e676;'>{last_rsi:.1f}</div></div>", unsafe_allow_html=True)
+
+with col_supp:
+    st.markdown(f"<div class='card-info'><div class='card-title'>S/R LEVELS</div><div class='card-value' style='color:#ffb74d; font-size: 16px; margin-top: 5px;'>{support:.4f} / {resistance:.4f}</div></div>", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# --- Stable Quotex Chart ---
 fig = go.Figure()
 
 fig.add_trace(go.Candlestick(
@@ -183,36 +244,26 @@ fig.add_trace(go.Candlestick(
     low=df['Low'],
     close=df['Close'],
     name="Quotex Feed",
-    increasing_line_color='#00f090',  # Neon Quotex Green
+    increasing_line_color='#00f090',
     increasing_fillcolor='#00f090',
-    decreasing_line_color='#ff3366',  # Neon Quotex Red
+    decreasing_line_color='#ff3366',
     decreasing_fillcolor='#ff3366'
 ))
 
-# Expiration Vertical Lines
 last_time = df.index[-1]
 trade_start = df.index[-3]
-
 fig.add_vline(x=trade_start, line_width=1.5, line_dash="dash", line_color="#00e676", annotation_text="Beginning of trade", annotation_position="top left")
 fig.add_vline(x=last_time, line_width=1.5, line_dash="dash", line_color="#ff5252", annotation_text="End of trade", annotation_position="top right")
 
 fig.update_layout(
-    title=f"Quotex Live Feed - {asset}",
+    title=f"Quotex Live Terminal - {asset}",
     paper_bgcolor='#0e131d',
     plot_bgcolor='#131924',
     xaxis_rangeslider_visible=False,
-    height=480,
+    height=500,
     margin=dict(l=10, r=10, t=40, b=10),
-    xaxis=dict(
-        showgrid=True,
-        gridcolor='#1e2736',
-        zerolinecolor='#1e2736'
-    ),
-    yaxis=dict(
-        showgrid=True,
-        gridcolor='#1e2736',
-        zerolinecolor='#1e2736'
-    )
+    xaxis=dict(showgrid=True, gridcolor='#1e2736', zerolinecolor='#1e2736'),
+    yaxis=dict(showgrid=True, gridcolor='#1e2736', zerolinecolor='#1e2736')
 )
 
 st.plotly_chart(fig, use_container_width=True)
