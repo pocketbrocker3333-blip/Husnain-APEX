@@ -118,10 +118,15 @@ with col_asset:
         "EUR/USD (OTC)", "GBP/USD (OTC)", "USD/JPY (OTC)"
     ])
 
-with col_time:
+# Smooth Non-Flickering Timer Fragment
+@st.fragment(run_every=1)
+def show_live_timer():
     now = datetime.now()
     seconds_left = 60 - now.second
     st.markdown(f"<div class='timer-badge'>⏱ Candle Close: {seconds_left:02d}s</div>", unsafe_allow_html=True)
+
+with col_time:
+    show_live_timer()
 
 with col_btn:
     analyze_btn = st.button("🔍 ANALYZE LIVE MARKET", use_container_width=True)
