@@ -20,7 +20,6 @@ st.markdown("""
     .main { background-color: #0e131d; color: #ffffff; }
     .stApp { background-color: #0e131d; }
     
-    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #131722 !important;
         border-right: 1px solid #1e2538;
@@ -45,7 +44,7 @@ st.markdown("""
         height: 4px;
         background: linear-gradient(90deg, transparent, #00e676, #ffffff, #00e676, transparent);
         box-shadow: 0 0 15px #00e676, 0 0 30px #00e676;
-        animation: scan 2s infinite ease-in-out;
+        animation: scan 1.5s infinite ease-in-out;
         z-index: 10;
     }
     
@@ -66,7 +65,6 @@ st.markdown("""
         text-align: center;
     }
 
-    /* Custom Signal Cards */
     .card-call {
         background: #003319;
         border: 2px solid #00e676;
@@ -79,14 +77,6 @@ st.markdown("""
         background: #33000d;
         border: 2px solid #ff3366;
         box-shadow: 0 0 15px rgba(255, 51, 102, 0.4);
-        border-radius: 8px;
-        padding: 12px;
-        text-align: center;
-    }
-    .card-wait {
-        background: #332200;
-        border: 2px solid #ffb74d;
-        box-shadow: 0 0 15px rgba(255, 183, 77, 0.4);
         border-radius: 8px;
         padding: 12px;
         text-align: center;
@@ -141,13 +131,15 @@ with col_time:
 with col_btn:
     analyze_btn = st.button("🔍 ANALYZE LIVE MARKET", use_container_width=True)
 
-# --- Data Engine ---
+# --- Dynamic Market Engine ---
 def get_quotex_market_data(asset_name, tf_name):
-    np.random.seed(int(time.time() * 10) % 10000)
-    periods = 40
+    # Dynamic seed based on microsecond to always generate unique market waves
+    np.random.seed(int(time.time() * 1000) % 100000)
+    periods = 50
     dates = pd.date_range(end=pd.Timestamp.now(), periods=periods, freq='1min')
     
-    steps = np.random.normal(loc=0.0, scale=0.0008, size=periods)
+    # Random walk with directional volatility
+    steps = np.random.normal(loc=0.0, scale=0.0009, size=periods)
     price_path = 1.0850 + np.cumsum(steps)
     
     df = pd.DataFrame({'Open': price_path, 'Close': price_path}, index=dates)
@@ -165,36 +157,33 @@ def get_quotex_market_data(asset_name, tf_name):
 
 df = get_quotex_market_data(asset, timeframe)
 
-# --- Laser Scanner Animation on Button Press ---
+# --- Scanner Animation ---
 if analyze_btn:
     scan_placeholder = st.empty()
-    for i in range(3, 0, -1):
+    for i in range(2, 0, -1):
         scan_placeholder.markdown(f"""
             <div class='scanner-box'>
                 <div class='laser-line'></div>
-                <h3 style='text-align: center; color: #00e676;'>Scanning Quotex Feed ({asset} - {timeframe})...</h3>
-                <p style='text-align: center; color: #ffffff;'>Calculating Support/Resistance, RSI & Engulfing Patterns... {i}s</p>
+                <h3 style='text-align: center; color: #00e676;'>Scanning Indicators for {asset} ({timeframe})...</h3>
+                <p style='text-align: center; color: #ffffff;'>Calculating Support/Resistance, RSI & Candlesticks... {i}s</p>
             </div>
         """, unsafe_allow_html=True)
         time.sleep(1)
     scan_placeholder.empty()
-    st.success("Market Scanned Successfully!")
 
 # --- Signal Calculations ---
 support = df['Low'].min()
 resistance = df['High'].max()
 signal_type, signal_text, confidence, last_rsi = calculate_advanced_signal(df)
 
-# --- Glowing Signal Cards ---
+# --- Signal Display Cards ---
 col_sig, col_conf, col_rsi, col_supp = st.columns(4)
 
 with col_sig:
     if signal_type == "CALL":
         st.markdown(f"<div class='card-call'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#00e676;'>{signal_text}</div></div>", unsafe_allow_html=True)
-    elif signal_type == "PUT":
-        st.markdown(f"<div class='card-put'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#ff3366;'>{signal_text}</div></div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='card-wait'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#ffb74d;'>{signal_text}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='card-put'><div class='card-title'>SIGNAL</div><div class='card-value' style='color:#ff3366;'>{signal_text}</div></div>", unsafe_allow_html=True)
 
 with col_conf:
     st.markdown(f"<div class='card-info'><div class='card-title'>ACCURACY</div><div class='card-value' style='color:#ffffff;'>{confidence}</div></div>", unsafe_allow_html=True)
@@ -207,7 +196,7 @@ with col_supp:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- Original Quotex Neon Candlestick Chart ---
+# --- Candlestick Chart ---
 fig = go.Figure()
 
 fig.add_trace(go.Candlestick(

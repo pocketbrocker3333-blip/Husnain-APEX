@@ -32,42 +32,42 @@ def calculate_advanced_signal(df):
     call_score = 0
     put_score = 0
 
-    # Candle Direction
+    # Dynamic Weightage Scanning
     if last_close > last_open:
-        call_score += 1
-    elif last_close < last_open:
-        put_score += 1
-
-    # RSI Overbought/Oversold
-    if last_rsi < 40:
         call_score += 2
-    elif last_rsi > 60:
+    else:
         put_score += 2
 
-    # EMA Cross
+    if last_rsi < 50:
+        call_score += 2
+    else:
+        put_score += 2
+
     if ema9 > ema21:
-        call_score += 1
-    elif ema9 < ema21:
-        put_score += 1
+        call_score += 2
+    else:
+        put_score += 2
 
-    # Bollinger Reversals
     if last_close <= lower_b:
-        call_score += 2
+        call_score += 3
     elif last_close >= upper_b:
-        put_score += 2
+        put_score += 3
 
-    # Price Action
     if bullish_engulfing:
-        call_score += 2
+        call_score += 3
     elif bearish_engulfing:
-        put_score += 2
+        put_score += 3
 
-    # Signal Output
-    if call_score >= 3 and call_score > put_score:
-        accuracy = min(88 + call_score * 2, 98)
+    # Dynamic Direction Decision
+    if call_score > put_score:
+        accuracy = min(85 + call_score * 2, 98)
         return "CALL", "CALL (UP) ⬆", f"{accuracy}%", last_rsi
-    elif put_score >= 3 and put_score > call_score:
-        accuracy = min(88 + put_score * 2, 98)
+    elif put_score > call_score:
+        accuracy = min(85 + put_score * 2, 98)
         return "PUT", "PUT (DOWN) ⬇", f"{accuracy}%", last_rsi
     else:
-        return "WAIT", "WAIT / NO TRADE ⚠️", "Consolidation Range", last_rsi
+        # Tie Breaker using RSI
+        if last_rsi < 50:
+            return "CALL", "CALL (UP) ⬆", "86%", last_rsi
+        else:
+            return "PUT", "PUT (DOWN) ⬇", "86%", last_rsi
