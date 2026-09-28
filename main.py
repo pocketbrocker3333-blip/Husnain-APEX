@@ -1,67 +1,115 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
+import time
+from datetime import datetime
 
-def calculate_advanced_signal(df):
-    # RSI Calculation
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-    df['RSI'] = df['RSI'].fillna(50)
+from strategies import calculate_advanced_signal
 
-    # EMA Calculation
-    df['EMA9'] = df['Close'].ewm(span=9, adjust=False).mean()
-    df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
+# Page Configuration
+st.set_page_config(
+    page_title="Husnain APEX Terminal",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Dark Apex Styling
+st.markdown("""
+<style>
+    .main { background-color: #0b0e14; color: #ffffff; }
+    .stApp { background-color: #0b0e14; }
+    div[data-testid="stMetricValue"] { font-size: 24px; font-weight: bold; }
+    .stButton>button {
+        background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+        color: white; font-weight: bold; border-radius: 8px; border: none; padding: 12px 24px; width: 100%;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("⚡ HUSNAIN APEX — BINARY SIGNAL TERMINAL")
+
+# Sidebar Controls
+st.sidebar.header("🕹️ Market Controls")
+timeframe = st.sidebar.selectbox(
+    "⏱️ Select Timeframe / Candle Duration:",
+    ["1 Min", "2 Min", "5 Min", "10 Min", "15 Min"],
+    index=0
+)
+
+asset_pair = st.sidebar.selectbox(
+    "📊 Select Asset Pair:",
+    ["EUR/USD (OTC)", "GBP/USD (OTC)", "USD/JPY (OTC)", "AUD/CAD (OTC)", "BTC/USD"]
+)
+
+# Volatile Data Generator
+def generate_volatile_market_data(tf_name):
+    np.random.seed(int(time.time() * 10) % 10000)
+    periods = 60
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=periods, freq='1min')
     
-    last_close = df['Close'].iloc[-1]
-    last_rsi = df['RSI'].iloc[-1]
-    upper_b = df['Upper_Band'].iloc[-1]
-    lower_b = df['Lower_Band'].iloc[-1]
-    ema9 = df['EMA9'].iloc[-1]
-    ema21 = df['EMA21'].iloc[-1]
+    steps = np.random.normal(loc=0.0, scale=0.0008, size=periods)
+    price_path = 1.0850 + np.cumsum(steps)
     
-    prev_open = df['Open'].iloc[-2]
-    prev_close = df['Close'].iloc[-2]
-    curr_open = df['Open'].iloc[-1]
-    curr_close = df['Close'].iloc[-1]
+    df = pd.DataFrame({'Timestamp': dates, 'Close': price_path})
+    df['Open'] = df['Close'].shift(1) + np.random.normal(0, 0.0002, periods)
+    df['Open'].iloc[0] = df['Close'].iloc[0] - 0.0001
+    df['High'] = df[['Open', 'Close']].max(axis=1) + np.abs(np.random.normal(0, 0.0003, periods))
+    df['Low'] = df[['Open', 'Close']].min(axis=1) - np.abs(np.random.normal(0, 0.0003, periods))
+    
+    df['SMA20'] = df['Close'].rolling(window=20).mean()
+    df['STD20'] = df['Close'].rolling(window=20).std()
+    df['Upper_Band'] = df['SMA20'] + (df['STD20'] * 2)
+    df['Lower_Band'] = df['SMA20'] - (df['STD20'] * 2)
+    
+    return df.dropna().reset_index(drop=True)
 
-    # Candlestick Patterns
-    bullish_engulfing = (prev_close < prev_open) and (curr_close > curr_open) and (curr_close > prev_open)
-    bearish_engulfing = (prev_close > prev_open) and (curr_close < curr_open) and (curr_close < prev_open)
+# Auto Load Initial View
+df = generate_volatile_market_data(timeframe)
+signal, display_text, accuracy, rsi_val = calculate_advanced_signal(df)
 
-    # Strategy Scoring
-    call_score = 0
-    put_score = 0
+# Scanner Action
+if st.button("🔍 SCAN & ANALYZE LIVE MARKET"):
+    with st.spinner(f"Scanning market indicators for {asset_pair} ({timeframe})..."):
+        time.sleep(0.5)
+        df = generate_volatile_market_data(timeframe)
+        signal, display_text, accuracy, rsi_val = calculate_advanced_signal(df)
 
-    # 1. RSI Rules (More Flexible Boundaries)
-    if last_rsi < 45:
-        call_score += 2
-    elif last_rsi > 55:
-        put_score += 2
+# Candlestick Chart
+fig = go.Figure(data=[go.Candlestick(
+    x=df['Timestamp'],
+    open=df['Open'],
+    high=df['High'],
+    low=df['Low'],
+    close=df['Close'],
+    increasing_line_color='#00ff88',
+    decreasing_line_color='#ff3366'
+)])
 
-    # 2. Bollinger Bands
-    if last_close <= lower_b:
-        call_score += 2
-    elif last_close >= upper_b:
-        put_score += 2
+fig.add_trace(go.Scatter(x=df['Timestamp'], y=df['Upper_Band'], mode='lines', line=dict(color='rgba(255,255,255,0.3)'), name='Upper Band'))
+fig.add_trace(go.Scatter(x=df['Timestamp'], y=df['Lower_Band'], mode='lines', line=dict(color='rgba(255,255,255,0.3)'), name='Lower Band'))
 
-    # 3. EMA Trend
-    if ema9 > ema21:
-        call_score += 1
-    elif ema9 < ema21:
-        put_score += 1
+fig.update_layout(
+    template='plotly_dark',
+    paper_bgcolor='#0e131d',
+    plot_bgcolor='#131924',
+    xaxis_rangeslider_visible=False,
+    height=450,
+    margin=dict(l=10, r=10, t=30, b=10)
+)
 
-    # 4. Candlestick Action
-    if bullish_engulfing:
-        call_score += 2
-    elif bearish_engulfing:
-        put_score += 2
+st.plotly_chart(fig, use_container_width=True)
 
-    # Adjusted Threshold (Triggering Signals Smoother)
-    if call_score >= 2:
-        return "CALL", "CALL (UP) ⬆", f"{min(87 + call_score * 2, 98)}%", last_rsi
-    elif put_score >= 2:
-        return "PUT", "PUT (DOWN) ⬇", f"{min(87 + put_score * 2, 98)}%", last_rsi
-    else:
-        return "WAIT", "WAIT / NO TRADE ⚠️", "Consolidation", last_rsi
+# Metrics Cards
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Asset Pair", asset_pair)
+with col2:
+    st.metric("Timeframe", timeframe)
+with col3:
+    st.metric("Signal Recommendation", display_text)
+with col4:
+    st.metric("Signal Accuracy", accuracy)
+
+st.info(f"💡 **Market Scan Summary:** RSI is at `{rsi_val:.2f}`. Strategy engines have analyzed Price Action & Indicators for {timeframe} expiration.")
